@@ -1,0 +1,10 @@
+#!/usr/bin/ruby
+
+require_relative '../lib/WorkEnvs'
+
+opts = {}
+opts[:envOpts] = WorkEnvs::EnvOpts.new()
+
+# The entire CLI parsing, formatting, listing, option checking, and action routing is fully automated!
+# Built-in options like --verbose, -y/--yes, -n/--no are parsed and processed automatically.
+WorkEnvs.run_cli(opts)

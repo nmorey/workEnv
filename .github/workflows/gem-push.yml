@@ -1,0 +1,85 @@
+name: Ruby Gem
+
+on:
+  push:
+    branches:
+      - "*"
+    tags:
+      - v*
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  # Job 1: Dynamically determine active Ruby versions
+  setup-matrix:
+    name: Determine Ruby Versions
+    runs-on: ubuntu-latest
+    outputs:
+      ruby-versions: ${{ steps.set-versions.outputs.versions }}
+    steps:
+      - id: set-versions
+        run: |
+          # Fetch the official active Ruby versions list and format as a JSON array
+          VERSIONS=$(curl -s https://cache.ruby-lang.org/pub/misc/ci_versions/cruby.json | jq -c '.')
+          echo "versions=${VERSIONS}" >> "$GITHUB_OUTPUT"
+
+  # Job 2: Build against the retrieved versions
+  build:
+    name: Build (Ruby ${{ matrix.ruby-version }})
+    needs: setup-matrix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        ruby-version: ${{ fromJSON(needs.setup-matrix.outputs.ruby-versions) }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-tags: 1
+        fetch-depth: 0
+    - name: Set up Ruby ${{ matrix.ruby-version }}
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby-version }}
+        bundler-cache: true
+    - name: Run tests
+      run: |
+        bundle exec rake
+    - name: Build gem
+      run: |
+        gem build workEnv.gemspec
+
+  # Job 3: Publish the gem
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-tags: 1
+        fetch-depth: 0
+    - name: Set up Ruby (Latest Stable)
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: 'ruby' # 'ruby' points to the latest stable release
+        bundler-cache: true
+    - name: Publish to RubyGems
+      if: contains(github.ref, 'refs/tags/v')
+      run: |
+        mkdir -p $HOME/.gem
+        touch $HOME/.gem/credentials
+        chmod 0600 $HOME/.gem/credentials
+        printf -- "---\n:rubygems_api_key: ${GEM_HOST_API_KEY}\n" > $HOME/.gem/credentials
+        gem build workEnv.gemspec
+        gem push *.gem
+      env:
+        GEM_HOST_API_KEY: "${{secrets.RUBYGEMS_AUTH_TOKEN}}"
