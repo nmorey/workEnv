@@ -4,6 +4,7 @@ require 'minitest/autorun'
 require 'fileutils'
 require 'tmpdir'
 require 'open3'
+require 'rbconfig'
 
 class TestWorkEnv < Minitest::Test
   def setup
@@ -37,7 +38,7 @@ class TestWorkEnv < Minitest::Test
 
   # Helper to execute wenv in our sandboxed environment
   def run_wenv(*args)
-    cmd = ['bundle', 'exec', @wenv_bin] + args
+    cmd = [RbConfig.ruby, @wenv_bin] + args
     stdout, stderr, status = Open3.capture3(*cmd)
     { stdout: stdout, stderr: stderr, status: status }
   end
